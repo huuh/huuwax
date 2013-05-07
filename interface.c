@@ -36,7 +36,6 @@
 #include "layout.h"
 #include "player.h"
 #include "rig.h"
-#include "selector.h"
 #include "status.h"
 #include "timecoder.h"
 #include "xwax.h"
@@ -153,19 +152,14 @@ static SDL_Color background_col = {0, 0, 0, 255},
     warn_col = {192, 64, 0, 255},
     ok_col = {32, 128, 3, 255},
     elapsed_col = {0, 32, 255, 255},
-    cursor_col = {192, 0, 0, 255},
-    selected_col = {0, 48, 64, 255},
     detail_col = {128, 128, 128, 255},
-    needle_col = {255, 255, 255, 255},
-    artist_col = {16, 64, 0, 255},
-    bpm_col = {64, 16, 0, 255};
+    needle_col = {255, 255, 255, 255};
 
 static unsigned short *spinner_angle, spinner_size;
 
 static int width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT,
     meter_scale = DEFAULT_METER_SCALE;
 static pthread_t ph;
-static struct selector selector;
 
 /*
  * Scale a dimension according to the current zoom level
@@ -450,37 +444,6 @@ static void track_baseline(const struct rect *rect, const TTF_Font *a,
 }
 
 /*
- * Draw a coloured rectangle
- */
-
-static void draw_rect(SDL_Surface *surface, const struct rect *rect,
-                      SDL_Color col)
-{
-    SDL_Rect b;
-
-    b.x = rect->x;
-    b.y = rect->y;
-    b.w = rect->w;
-    b.h = rect->h;
-    SDL_FillRect(surface, &b, palette(surface, &col));
-}
-
-/*
- * Draw some text in a box
- */
-
-static void draw_token(SDL_Surface *surface, const struct rect *rect,
-                       const char *buf,
-                       SDL_Color text_col, SDL_Color col, SDL_Color bg_col)
-{
-    struct rect b;
-
-    draw_rect(surface, rect, bg_col);
-    b = shrink(*rect, TOKEN_SPACE);
-    draw_text(surface, &b, buf, detail_font, text_col, col);
-}
-
-/*
  * Dim a colour for display
  */
 
@@ -548,80 +511,6 @@ static SDL_Color hsv(double h, double s, double v)
     default:
         abort();
     }
-}
-
-static bool show_bpm(double bpm)
-{
-    return (bpm > 20.0 && bpm < 400.0);
-}
-
-/*
- * Draw the beats-per-minute indicator
- */
-
-static void draw_bpm(SDL_Surface *surface, const struct rect *rect, double bpm,
-                     SDL_Color bg_col)
-{
-    static const double min = 60.0, max = 240.0;
-    char buf[32];
-    double f, h;
-
-    sprintf(buf, "%5.1f", bpm);
-
-    /* Safety catch against bad BPM values, NaN, infinity etc. */
-
-    if (bpm < min || bpm > max) {
-        draw_token(surface, rect, buf, detail_col, bg_col, bg_col);
-        return;
-    }
-
-    /* Colour compatible BPMs the same; cycle 360 degrees
-     * every time the BPM doubles */
-
-    f = log2(bpm);
-    f -= floor(f);
-    h = f * 360.0; /* degrees */
-
-    draw_token(surface, rect, buf, text_col, hsv(h, 1.0, 0.3), bg_col);
-}
-
-/*
- * Draw the BPM field, or a gap
- */
-
-static void draw_bpm_field(SDL_Surface *surface, const struct rect *rect,
-                           double bpm, SDL_Color bg_col)
-{
-    if (show_bpm(bpm))
-        draw_bpm(surface, rect, bpm, bg_col);
-    else
-        draw_rect(surface, rect, bg_col);
-}
-
-/*
- * Draw the record information in the deck
- */
-
-static void draw_record(SDL_Surface *surface, const struct rect *rect,
-                        const struct record *record)
-{
-    struct rect artist, title, left, right;
-
-    split(*rect, from_top(BIG_FONT_SPACE, 0), &artist, &title);
-    draw_text(surface, &artist, record->artist,
-              big_font, text_col, background_col);
-
-    /* Layout changes slightly if BPM is known */
-
-    if (show_bpm(record->bpm)) {
-        split(title, from_left(BPM_WIDTH, 0), &left, &right);
-        draw_bpm(surface, &left, record->bpm, background_col);
-
-        split(right, from_left(HALF_SPACER, 0), &left, &title);
-        draw_rect(surface, &left, background_col);
-    }
-
-    draw_text(surface, &title, record->title, font, text_col, background_col);
 }
 
 /*
@@ -1033,7 +922,7 @@ static void draw_deck(SDL_Surface *surface, const struct rect *rect,
     if (rest.h < 160)
         rest = *rect;
     else
-        draw_record(surface, &track, deck->record);
+        draw_text(surface, &track, deck->pathname, font, text_col, background_col);
 
     split(rest, from_top(CLOCK_FONT_SIZE * 2, SPACER), &top, &lower);
     if (lower.h < 64)
@@ -1081,312 +970,12 @@ static void draw_status(SDL_Surface *sf, const struct rect *rect)
 }
 
 /*
- * Draw the search field which the user types into
- */
-
-static void draw_search(SDL_Surface *surface, const struct rect *rect,
-                        struct selector *sel)
-{
-    int s;
-    const char *buf;
-    char cm[32];
-    SDL_Rect cursor;
-    struct rect rtext;
-
-    split(*rect, from_left(SCROLLBAR_SIZE, SPACER), NULL, &rtext);
-
-    if (sel->search[0] != '\0')
-        buf = sel->search;
-    else
-        buf = NULL;
-
-    s = draw_text(surface, &rtext, buf, font, text_col, background_col);
-
-    cursor.x = rtext.x + s;
-    cursor.y = rtext.y;
-    cursor.w = CURSOR_WIDTH;
-    cursor.h = rtext.h;
-
-    SDL_FillRect(surface, &cursor, palette(surface, &cursor_col));
-
-    if (sel->view_listing->entries > 1)
-        sprintf(cm, "%zd matches", sel->view_listing->entries);
-    else if (sel->view_listing->entries > 0)
-        sprintf(cm, "1 match");
-    else
-        sprintf(cm, "no matches");
-
-    rtext.x += s + CURSOR_WIDTH + SPACER;
-    rtext.w -= s + CURSOR_WIDTH + SPACER;
-
-    draw_text(surface, &rtext, cm, em_font, detail_col, background_col);
-}
-
-/*
- * Draw a vertical scroll bar representing our view on a list of the
- * given number of entries
- */
-
-static void draw_scroll_bar(SDL_Surface *surface, const struct rect *rect,
-                            const struct scroll *scroll)
-{
-    SDL_Rect box;
-    SDL_Color bg;
-
-    bg = dim(selected_col, 1);
-
-    box.x = rect->x;
-    box.y = rect->y;
-    box.w = rect->w;
-    box.h = rect->h;
-    SDL_FillRect(surface, &box, palette(surface, &bg));
-
-    if (scroll->entries > 0) {
-        box.x = rect->x;
-        box.y = rect->y + rect->h * scroll->offset / scroll->entries;
-        box.w = rect->w;
-        box.h = rect->h * MIN(scroll->lines, scroll->entries) / scroll->entries;
-        SDL_FillRect(surface, &box, palette(surface, &selected_col));
-    }
-}
-
-/*
- * Display a crate listing, with scrollbar and current selection
- *
- * Return: the number of lines which fit on the display.
- */
-
-static void draw_crates(SDL_Surface *surface, const struct rect *rect,
-                        const struct library *library,
-                        const struct scroll *scroll,
-                        int sort)
-{
-    size_t n;
-    struct rect left, bottom;
-
-    split(*rect, from_left(SCROLLBAR_SIZE, SPACER), &left, &bottom);
-    draw_scroll_bar(surface, &left, scroll);
-
-    n = scroll->offset;
-
-    for (;;) {
-        bool selected;
-        SDL_Color col;
-        struct rect top, remain;
-        const struct crate *crate;
-
-        if (n >= library->crates)
-            break;
-
-        split(bottom, from_top(FONT_SPACE, 0), &top, &remain);
-
-        if (remain.h < 0)
-            break;
-
-        bottom = remain;
-        crate = library->crate[n];
-        selected = (n == scroll->selected);
-
-        col = crate->is_fixed ? detail_col: text_col;
-
-        if (!selected) {
-            draw_text(surface, &top, crate->name, font, col, background_col);
-        } else {
-            struct rect left, right;
-
-            split(top, from_right(SORT_WIDTH, 0), &left, &right);
-            draw_text(surface, &left, crate->name, font, col, selected_col);
-
-            switch (sort) {
-            case SORT_ARTIST:
-                draw_token(surface, &right, "ART", text_col,
-                           artist_col, selected_col);
-                break;
-            case SORT_BPM:
-                draw_token(surface, &right, "BPM", text_col,
-                           bpm_col, selected_col);
-                break;
-            case SORT_PLAYLIST:
-                draw_token(surface, &right, "PLS", text_col,
-                           selected_col, selected_col);
-                break;
-            default:
-                abort();
-            }
-        }
-
-        n++;
-    }
-
-    draw_rect(surface, &bottom, background_col);
-}
-
-
-
-/*
- * Display a record library listing, with scrollbar and current
- * selection
- *
- * Return: the number of lines which fit on the display
- */
-
-static void draw_listing(SDL_Surface *surface, const struct rect *rect,
-                         const struct listing *listing,
-                         const struct scroll *scroll)
-{
-    size_t n;
-    int width;
-    struct rect left, bottom;
-
-    split(*rect, from_left(SCROLLBAR_SIZE, SPACER), &left, &bottom);
-    draw_scroll_bar(surface, &left, scroll);
-
-    /* Choose the width of the 'artist' column */
-
-    width = bottom.w / 2;
-    if (width > RESULTS_ARTIST_WIDTH)
-        width = RESULTS_ARTIST_WIDTH;
-
-    n = scroll->offset;
-
-    for (;;) {
-        SDL_Color col;
-        struct rect top, left, right, remain;
-        const struct record *record;
-        bool selected;
-
-        if (n >= listing->entries)
-            break;
-
-        split(bottom, from_top(FONT_SPACE, 0), &top, &remain);
-
-        if (remain.h < 0)
-            break;
-
-        bottom = remain;
-        record = listing->record[n];
-        selected = (n == scroll->selected);
-
-        if (selected) {
-            col = selected_col;
-        } else {
-            col = background_col;
-        }
-
-        split(top, from_left(BPM_WIDTH, 0), &left, &right);
-        draw_bpm_field(surface, &left, record->bpm, col);
-
-        split(right, from_left(SPACER, 0), &left, &right);
-        draw_rect(surface, &left, col);
-
-        split(right, from_left(width, 0), &left, &right);
-        draw_text(surface, &left, record->artist, font, text_col, col);
-
-        split(right, from_left(SPACER, 0), &left, &right);
-        draw_rect(surface, &left, col);
-        draw_text(surface, &right, record->title, font, text_col, col);
-
-        n++;
-    }
-
-    draw_rect(surface, &bottom, background_col);
-}
-
-/*
- * Display the music library, which consists of the query, and search
- * results
- */
-
-static void draw_library(SDL_Surface *surface, const struct rect *rect,
-                         struct selector *sel)
-{
-    struct rect rsearch, rlists, rcrates, rrecords;
-
-    split(*rect, from_top(SEARCH_HEIGHT, SPACER), &rsearch, &rlists);
-    draw_search(surface, &rsearch, sel);
-
-    selector_set_lines(sel, count_rows(rlists, FONT_SPACE));
-
-    split(rlists, columns(0, 4, SPACER), &rcrates, &rrecords);
-    if (rcrates.w > LIBRARY_MIN_WIDTH) {
-        draw_listing(surface, &rrecords, sel->view_listing, &sel->records);
-        draw_crates(surface, &rcrates, sel->library, &sel->crates, sel->sort);
-    } else {
-        draw_listing(surface, rect, sel->view_listing, &sel->records);
-    }
-}
-
-/*
  * Handle a single key event
- *
- * Return: true if the selector needs to be redrawn, otherwise false
  */
 
-static bool handle_key(SDLKey key, SDLMod mod)
+static void handle_key(SDLKey key, SDLMod mod)
 {
-    struct selector *sel = &selector;
-
-    if (key >= SDLK_a && key <= SDLK_z) {
-        selector_search_refine(sel, (key - SDLK_a) + 'a');
-        return true;
-
-    } else if (key >= SDLK_0 && key <= SDLK_9) {
-        selector_search_refine(sel, (key - SDLK_0) + '0');
-        return true;
-
-    } else if (key == SDLK_SPACE) {
-        selector_search_refine(sel, ' ');
-        return true;
-
-    } else if (key == SDLK_BACKSPACE) {
-        selector_search_expand(sel);
-        return true;
-
-    } else if (key == SDLK_PERIOD) {
-        selector_search_refine(sel, '.');
-        return true;
-
-    } else if (key == SDLK_HOME) {
-        selector_top(sel);
-        return true;
-
-    } else if (key == SDLK_END) {
-        selector_bottom(sel);
-        return true;
-
-    } else if (key == SDLK_UP) {
-        selector_up(sel);
-        return true;
-
-    } else if (key == SDLK_DOWN) {
-        selector_down(sel);
-        return true;
-
-    } else if (key == SDLK_PAGEUP) {
-        selector_page_up(sel);
-        return true;
-
-    } else if (key == SDLK_PAGEDOWN) {
-        selector_page_down(sel);
-        return true;
-
-    } else if (key == SDLK_LEFT) {
-        selector_prev(sel);
-        return true;
-
-    } else if (key == SDLK_RIGHT) {
-        selector_next(sel);
-        return true;
-
-    } else if (key == SDLK_TAB) {
-        if (mod & KMOD_CTRL) {
-            selector_toggle_order(sel);
-        } else {
-            selector_toggle(sel);
-        }
-        return true;
-
-    } else if ((key == SDLK_EQUALS) || (key == SDLK_PLUS)) {
+    if ((key == SDLK_EQUALS) || (key == SDLK_PLUS)) {
         meter_scale--;
 
         if (meter_scale < 0)
@@ -1414,7 +1003,6 @@ static bool handle_key(SDLKey key, SDLMod mod)
             int func;
             struct deck *de;
             struct player *pl;
-            struct record *re;
             struct timecoder *tc;
 
             func = (key - SDLK_F1) % 4;
@@ -1428,12 +1016,6 @@ static bool handle_key(SDLKey key, SDLMod mod)
                     deck_clone(de, &deck[func]);
 
             } else switch(func) {
-            case FUNC_LOAD:
-                re = selector_current(sel);
-                if (re != NULL)
-                    deck_load(de, re);
-                break;
-
             case FUNC_RECUE:
                 deck_recue(de);
                 break;
@@ -1448,8 +1030,6 @@ static bool handle_key(SDLKey key, SDLMod mod)
             }
         }
     }
-
-    return false;
 }
 
 /*
@@ -1510,13 +1090,13 @@ static void status_change(void)
 
 static int interface_main(void)
 {
-    bool library_update, decks_update, status_update;
+    bool decks_update, status_update;
 
     SDL_Event event;
     SDL_TimerID timer;
     SDL_Surface *surface;
 
-    struct rect rworkspace, rplayers, rlibrary, rstatus, rtmp;
+    struct rect rworkspace, rplayers, rstatus;
 
     surface = set_size(width, height, &rworkspace);
     if (!surface)
@@ -1524,7 +1104,6 @@ static int interface_main(void)
 
     decks_update = true;
     status_update = true;
-    library_update = true;
 
     /* The final action is to add the timer which triggers refresh */
 
@@ -1552,7 +1131,6 @@ static int interface_main(void)
             if (!surface)
                 return -1;
 
-            library_update = true;
             decks_update = true;
             status_update = true;
 
@@ -1577,44 +1155,18 @@ static int interface_main(void)
             break;
 
         case SDL_KEYDOWN:
-            if (handle_key(event.key.keysym.sym, event.key.keysym.mod))
-            {
-                struct record *r;
-
-                r = selector_current(&selector);
-                if (r != NULL) {
-                    status_set(STATUS_VERBOSE, r->pathname);
-                } else {
-                    status_set(STATUS_VERBOSE, "No search results found");
-                }
-
-                library_update = true;
-            }
+            handle_key(event.key.keysym.sym, event.key.keysym.mod);
+            break;
 
         } /* switch(event.type) */
 
-        /* Split the display into the various areas. If an area is too
-         * small, abandon any actions to happen in that area. */
-
-        split(rworkspace, from_bottom(STATUS_HEIGHT, SPACER), &rtmp, &rstatus);
-        if (rtmp.h < 128 || rtmp.w < 0) {
-            rtmp = rworkspace;
-            status_update = false;
-        }
-
-        split(rtmp, from_top(PLAYER_HEIGHT, SPACER), &rplayers, &rlibrary);
-        if (rlibrary.h < LIBRARY_MIN_HEIGHT || rlibrary.w < LIBRARY_MIN_WIDTH) {
-            rplayers = rtmp;
-            library_update = false;
-        }
+        /* Split the display into the various areas. */
+        split(rworkspace, from_bottom(STATUS_HEIGHT, SPACER), &rplayers, &rstatus);
 
         if (rplayers.h < 0 || rplayers.w < 0)
             decks_update = false;
 
         LOCK(surface);
-
-        if (library_update)
-            draw_library(surface, &rlibrary, &selector);
 
         if (status_update)
             draw_status(surface, &rstatus);
@@ -1623,11 +1175,6 @@ static int interface_main(void)
             draw_decks(surface, &rplayers, deck, ndeck, meter_scale);
 
         UNLOCK(surface);
-
-        if (library_update) {
-            UPDATE(surface, &rlibrary);
-            library_update = false;
-        }
 
         if (status_update) {
             UPDATE(surface, &rstatus);
@@ -1700,7 +1247,7 @@ static int parse_geometry(const char *s)
  * error
  */
 
-int interface_start(struct library *lib, const char *geo)
+int interface_start(const char *geo)
 {
     size_t n;
 
@@ -1717,7 +1264,6 @@ int interface_start(struct library *lib, const char *geo)
     if (init_spinner(zoom(SPINNER_SIZE)) == -1)
         return -1;
 
-    selector_init(&selector, lib);
     status_notify(status_change);
     status_set(STATUS_VERBOSE, banner);
 
@@ -1771,7 +1317,6 @@ void interface_stop(void)
         timecoder_monitor_clear(&deck[n].timecoder);
 
     clear_spinner();
-    selector_clear(&selector);
     clear_fonts();
 
     TTF_Quit();

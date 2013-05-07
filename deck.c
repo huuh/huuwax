@@ -25,16 +25,6 @@
 #include "rig.h"
 
 /*
- * An empty record, is used briefly until a record is loaded
- * to a deck
- */
-
-static const struct record no_record = {
-    .artist = "",
-    .title = ""
-};
-
-/*
  * Initialise a deck
  *
  * A deck is a logical grouping of the various components which
@@ -53,7 +43,7 @@ int deck_init(struct deck *deck, struct rt *rt)
         return -1;
 
     deck->ncontrol = 0;
-    deck->record = &no_record;
+    deck->pathname = "";
     deck->punch = NO_PUNCH;
     rate = device_sample_rate(&deck->device);
     player_init(&deck->player, rate, track_get_empty(), &deck->timecoder);
@@ -85,18 +75,18 @@ bool deck_is_locked(const struct deck *deck)
  * Load a record from the library to a deck
  */
 
-void deck_load(struct deck *deck, struct record *record)
+void deck_load(struct deck *deck, char *pathname)
 {
     struct track *t;
 
     if (deck_is_locked(deck))
         return;
 
-    t = track_get_by_import(deck->importer, record->pathname);
+    t = track_get_by_import(deck->importer, pathname);
     if (t == NULL)
         return;
 
-    deck->record = record;
+    deck->pathname = pathname;
     player_set_track(&deck->player, t); /* passes reference */
 }
 
@@ -110,7 +100,7 @@ void deck_recue(struct deck *deck)
 
 void deck_clone(struct deck *deck, const struct deck *from)
 {
-    deck->record = from->record;
+    deck->pathname = from->pathname;
     player_clone(&deck->player, &from->player);
 }
 

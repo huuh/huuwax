@@ -47,14 +47,12 @@ LDFLAGS ?= -O3
 # Core objects and libraries
 
 OBJS = controller.o cues.o deck.o device.o external.o interface.o \
-	library.o listing.o lut.o \
-	player.o realtime.o \
-	rig.o selector.o status.o thread.o timecoder.o track.o xwax.o
+	lut.o player.o realtime.o \
+	rig.o status.o thread.o timecoder.o track.o xwax.o
 DEVICE_CPPFLAGS =
 DEVICE_LIBS =
 
-TESTS = tests/cues tests/library tests/status tests/timecoder tests/track \
-	tests/ttf
+TESTS = tests/cues tests/status tests/timecoder tests/track tests/ttf
 
 # Optional device types
 
@@ -134,8 +132,6 @@ tests:		$(TESTS)
 tests:		CPPFLAGS += -I.
 
 tests/cues:	tests/cues.o cues.o
-
-tests/library:	tests/library.o external.o library.o listing.o
 
 tests/midi:	tests/midi.o midi.o
 tests/midi:	LDLIBS += $(ALSA_LIBS)

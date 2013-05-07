@@ -32,7 +32,6 @@
 #include "dicer.h"
 #include "interface.h"
 #include "jack.h"
-#include "library.h"
 #include "oss.h"
 #include "realtime.h"
 #include "thread.h"
@@ -50,7 +49,6 @@
 #define DEFAULT_PRIORITY 80
 
 #define DEFAULT_IMPORTER EXECDIR "/xwax-import"
-#define DEFAULT_SCANNER EXECDIR "/xwax-scan"
 #define DEFAULT_TIMECODE "serato_2a"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*x))
@@ -71,11 +69,6 @@ static void usage(FILE *fd)
       "  -g <n>x<n>     Set display geometry\n"
       "  -h             Display this message to stdout and exit\n\n",
       DEFAULT_PRIORITY);
-
-    fprintf(fd, "Music library options:\n"
-      "  -l <path>      Location to scan for audio tracks\n"
-      "  -s <program>   Library scanner (default '%s')\n\n",
-      DEFAULT_SCANNER);
 
     fprintf(fd, "Deck options:\n"
       "  -t <name>      Timecode name\n"
@@ -115,8 +108,7 @@ static void usage(FILE *fd)
 
     fprintf(fd,
       "The ordering of options is important. Options apply to subsequent\n"
-      "music libraries or decks, which can be given multiple times. See the\n"
-      "manual for details.\n\n"
+      "decks, which can be given multiple times. See the manual for details.\n\n"
       "Available timecodes (for use with -t):\n"
       "  serato_2a (default), serato_2b, serato_cd,\n"
       "  traktor_a, traktor_b, mixvibes_v2, mixvibes_7inch\n\n"
@@ -126,7 +118,7 @@ static void usage(FILE *fd)
 int main(int argc, char *argv[])
 {
     int r, n, priority;
-    const char *importer, *scanner, *geo;
+    const char *importer, *geo;
     char *endptr;
     size_t nctl;
     double speed;
@@ -135,7 +127,6 @@ int main(int argc, char *argv[])
 
     struct controller ctl[2];
     struct rt rt;
-    struct library library;
 
 #if defined WITH_OSS || WITH_ALSA
     int rate;
@@ -157,14 +148,12 @@ int main(int argc, char *argv[])
     if (rig_init() == -1)
         return -1;
     rt_init(&rt);
-    library_init(&library);
 
     ndeck = 0;
     geo = "";
     nctl = 0;
     priority = DEFAULT_PRIORITY;
     importer = DEFAULT_IMPORTER;
-    scanner = DEFAULT_SCANNER;
     timecode = NULL;
     speed = 1.0;
     protect = false;
@@ -469,37 +458,6 @@ int main(int argc, char *argv[])
             argv += 2;
             argc -= 2;
 
-        } else if (!strcmp(argv[0], "-s")) {
-
-            /* Scan script for subsequent libraries */
-
-            if (argc < 2) {
-                fprintf(stderr, "-s requires an executable path "
-                        "as an argument.\n");
-                return -1;
-            }
-
-            scanner = argv[1];
-
-            argv += 2;
-            argc -= 2;
-
-        } else if (!strcmp(argv[0], "-l")) {
-
-            /* Load in a music library */
-
-            if (argc < 2) {
-                fprintf(stderr, "-%c requires a pathname as an argument.\n",
-                        argv[0][1]);
-                return -1;
-            }
-
-            if (library_import(&library, scanner, argv[1]) == -1)
-                return -1;
-
-            argv += 2;
-            argc -= 2;
-
 #ifdef WITH_ALSA
         } else if (!strcmp(argv[0], "-dicer")) {
 
@@ -559,7 +517,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    if (interface_start(&library, geo) == -1)
+    if (interface_start(geo) == -1)
         return -1;
 
     if (rig_main() == -1)
@@ -577,7 +535,6 @@ int main(int argc, char *argv[])
         controller_clear(&ctl[n]);
 
     timecoder_free_lookup();
-    library_clear(&library);
     rt_clear(&rt);
     rig_clear();
     thread_global_clear();

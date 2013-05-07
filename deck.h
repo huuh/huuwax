@@ -24,7 +24,6 @@
 
 #include "cues.h"
 #include "device.h"
-#include "listing.h"
 #include "player.h"
 #include "realtime.h"
 #include "timecoder.h"
@@ -38,7 +37,7 @@ struct deck {
     bool protect;
 
     struct player player;
-    const struct record *record;
+    char *pathname;
     struct cues cues;
 
     /* Punch */
@@ -56,7 +55,7 @@ void deck_clear(struct deck *deck);
 
 bool deck_is_locked(const struct deck *deck);
 
-void deck_load(struct deck *deck, struct record *record);
+void deck_load(struct deck *deck, char *pathname);
 
 void deck_recue(struct deck *deck);
 void deck_clone(struct deck *deck, const struct deck *from);

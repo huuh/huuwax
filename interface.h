@@ -21,9 +21,8 @@
 #define INTERFACE_H
 
 #include "deck.h"
-#include "library.h"
 
-int interface_start(struct library *lib, const char *geo);
+int interface_start(const char *geo);
 void interface_stop();
 
 #endif
