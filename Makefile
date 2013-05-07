@@ -73,6 +73,12 @@ OBJS += oss.o
 DEVICE_CPPFLAGS += -DWITH_OSS
 endif
 
+ifdef OSC
+OBJS += osc.o
+DEVICE_CPPFLAGS += -DWITH_OSC
+LDLIBS += -llo
+endif
+
 TEST_OBJS = $(addsuffix .o,$(TESTS))
 DEPS = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)
 

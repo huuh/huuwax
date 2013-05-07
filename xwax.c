@@ -32,6 +32,7 @@
 #include "dicer.h"
 #include "interface.h"
 #include "jack.h"
+#include "osc.h"
 #include "oss.h"
 #include "realtime.h"
 #include "thread.h"
@@ -108,6 +109,11 @@ static void usage(FILE *fd)
 
     fprintf(fd, "Interface options:\n"
       "  -v             Arrange decks vertically\n\n");
+
+#ifdef WITH_OSC
+    fprintf(fd, "OSC control:\n"
+      "  -osc <port>    OSC controller\n\n");
+#endif
 
     fprintf(fd,
       "The ordering of options is important. Options apply to subsequent\n"
@@ -494,6 +500,32 @@ int main(int argc, char *argv[])
 
             argv++;
             argc--;
+
+#ifdef WITH_OSC
+        } else if (!strcmp(argv[0], "-osc")) {
+
+            struct controller *c;
+
+            if (nctl == sizeof ctl) {
+                fprintf(stderr, "Too many controllers; aborting.\n");
+                return -1;
+            }
+
+            c = &ctl[nctl];
+
+            if (argc < 2) {
+                fprintf(stderr, "OSC controller requires a port number (zero for random)");
+                return -1;
+            }
+
+            if (osc_init(c, &rt, argv[1]) == -1)
+                return -1;
+
+            nctl++;
+
+            argv += 2;
+            argc -= 2;
+#endif
 
         } else {
             fprintf(stderr, "'%s' argument is unknown; try -h.\n", argv[0]);
