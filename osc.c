@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <lo/lo.h>
@@ -10,8 +11,8 @@
 #include "xwax.h"
 
 #define PATH_MAX_LEN 20
+#define REPLY(msg, path, types, ...) (reply(msg, path, types, __VA_ARGS__, LO_ARGS_END))
 
-/* Handlers */
 typedef int (osc_handler)(const char *path, const char *types,
     lo_arg **argv, int argc, lo_message msg, void *user_data);
 
@@ -21,6 +22,24 @@ struct osc {
 };
 
 
+int reply(lo_message msg, const char *path, const char *types, ...)
+{
+    lo_address src = lo_message_get_source(msg);
+    lo_message response = lo_message_new();
+
+    va_list ap;
+    va_start(ap, types);
+    lo_message_add_varargs(response, types, ap);
+    va_end(ap);
+
+    lo_send_message(src, path, response);
+    lo_message_free(response);
+
+    return 0;
+}
+
+
+/* Handlers */
 static int handler_clone(const char *path, const char *types,
     lo_arg **argv, int argc, lo_message msg, void *user_data)
 {
@@ -165,17 +184,12 @@ static int handler_position_get(const char *path, const char *types,
 {
     struct deck *de = user_data;
     struct player *pl = &de->player;
-    lo_address dest;
+    char *replypath = &argv[0]->s;
 
-    pl = &de->player;
     if (!pl)
         return 0;
 
-    dest = lo_address_new_from_url(&argv[0]->s);
-    if (!dest)
-        return -1;
-
-    lo_send(dest, &argv[1]->s, "fi", (float)(pl->position - pl->offset), argv[2]->i);
+    REPLY(msg, replypath, "d", player_get_elapsed(pl));
 
     return 0;
 }
@@ -289,7 +303,7 @@ static int add_deck(struct controller *c, struct deck *deck)
         return -1;
 
     strncpy(pathtail, "position/get", len);
-    if (set_handler(osc, path, "ssi", handler_position_get, deck))
+    if (set_handler(osc, path, "s", handler_position_get, deck))
         return -1;
 
     strncpy(pathtail, "position/set", len);
