@@ -816,11 +816,12 @@ static void draw_overview(SDL_Surface *surface, const struct rect *rect,
         } else if (c == current_position) {
             col = needle_col;
             fade = 1;
-        } else if (position > tr->length - tr->rate * METER_WARNING_TIME) {
-            col = warn_col;
-            fade = 3;
         } else {
-            col = elapsed_col;
+            double f = 0;
+            if (position > 0 && position < tr->length)
+                f = 360.0 * position / tr->length;
+
+            col = hsv(f, 1, 0.8);
             fade = 3;
         }
 
@@ -828,7 +829,7 @@ static void draw_overview(SDL_Surface *surface, const struct rect *rect,
             col = dim(col, 1);
 
         if (c < current_position)
-            col = dim(col, 1);
+            fade = 1;
 
         /* Store a pointer to this column of the framebuffer */
 
@@ -896,9 +897,13 @@ static void draw_closeup(SDL_Surface *surface, const struct rect *rect,
         if (c == w / 2) {
             col = needle_col;
             fade = 1;
-        } else {
-            col = elapsed_col;
+        } else if (tr->length && sp > 0 && sp < tr->length) {
+            col = hsv(360.0 * sp / tr->length, 1.0, 0.8);
             fade = 3;
+        } else {
+            col = hsv(180.0, 1, 0.8);
+            col = dim(col, 3);
+            fade = 0;
         }
 
         /* Get a pointer to the top of the column, and increment
