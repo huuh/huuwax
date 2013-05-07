@@ -117,6 +117,7 @@
 #define FUNC_LOAD 0
 #define FUNC_RECUE 1
 #define FUNC_TIMECODE 2
+#define FUNC_TEMPO 3
 
 /* Types of SDL_USEREVENT */
 
@@ -166,6 +167,37 @@ static int width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT,
     meter_scale = DEFAULT_METER_SCALE;
 static pthread_t ph;
 static struct selector selector;
+
+/*
+ * Set beat
+ */
+
+static void set_beat_marker(struct player *pl, size_t n)
+{
+    static long marker[] = { -1, -1, -1, -1 };
+
+    if (!pl || !pl->track || n < 0 || n >= ndeck || pl->position < 0)
+        return;
+
+    struct track *tr = pl->track;
+    unsigned long pos = player_get_elapsed(pl) * tr->rate;
+
+    if (marker[n] < 0) {
+        marker[n] = pos;
+        return;
+    }
+    if (pos == marker[n])
+        return;
+
+    unsigned long int dt = pos > marker[n] ? pos - marker[n] : marker[n] - pos;
+    tr->beat_interval = dt;
+    tr->beat_offset = pos % dt;
+
+    marker[n] = -1;
+
+    fprintf(stderr, "deck %d: interval = %ld, offset = %ld, bpm = %.5f\n",
+            (int) n, dt, tr->beat_offset, (double) tr->rate * 60 / dt);
+}
 
 /*
  * Scale a dimension according to the current zoom level
@@ -893,12 +925,18 @@ static void draw_closeup(SDL_Surface *surface, const struct rect *rect,
 
         /* Select the appropriate colour */
 
+        col = elapsed_col;
+        fade = 3;
+
+        if (sp > 0 && sp < tr->length && tr->beat_interval &&
+            fmod(sp - tr->beat_offset, tr->beat_interval) < (1 << scale)) {
+            col = needle_col;
+            fade = 2;
+        }
+
         if (c == w / 2) {
             col = needle_col;
             fade = 1;
-        } else {
-            col = elapsed_col;
-            fade = 3;
         }
 
         /* Get a pointer to the top of the column, and increment
@@ -1444,6 +1482,10 @@ static bool handle_key(SDLKey key, SDLMod mod)
                 } else {
                     (void)player_toggle_timecode_control(pl);
                 }
+                break;
+
+            case FUNC_TEMPO:
+                set_beat_marker(pl, d);
                 break;
             }
         }
