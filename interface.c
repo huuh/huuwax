@@ -160,6 +160,7 @@ static unsigned short *spinner_angle, spinner_size;
 static int width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT,
     meter_scale = DEFAULT_METER_SCALE;
 static pthread_t ph;
+static bool vsplit = false;
 
 /*
  * Scale a dimension according to the current zoom level
@@ -940,7 +941,7 @@ static void draw_deck(SDL_Surface *surface, const struct rect *rect,
 }
 
 /*
- * Draw all the decks in the system left to right
+ * Draw all the decks in the system
  */
 
 static void draw_decks(SDL_Surface *surface, const struct rect *rect,
@@ -952,7 +953,11 @@ static void draw_decks(SDL_Surface *surface, const struct rect *rect,
     right = *rect;
 
     for (d = 0; d < ndecks; d++) {
-        split(right, columns(d, ndecks, BORDER), &left, &right);
+        if (vsplit)
+            split(right, rows(d, ndecks, BORDER), &left, &right);
+        else
+            split(right, columns(d, ndecks, BORDER), &left, &right);
+
         draw_deck(surface, &left, &deck[d], meter_scale);
     }
 }
@@ -1247,9 +1252,11 @@ static int parse_geometry(const char *s)
  * error
  */
 
-int interface_start(const char *geo)
+int interface_start(const char *geo, bool vs)
 {
     size_t n;
+
+    vsplit = vs;
 
     if (parse_geometry(geo) == -1) {
         fprintf(stderr, "Window geometry ('%s') is not valid.\n", geo);

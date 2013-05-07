@@ -22,7 +22,7 @@
 
 #include "deck.h"
 
-int interface_start(const char *geo);
+int interface_start(const char *geo, bool vsplit);
 void interface_stop();
 
 #endif
