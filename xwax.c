@@ -33,6 +33,7 @@
 #include "interface.h"
 #include "jack.h"
 #include "library.h"
+#include "osc.h"
 #include "oss.h"
 #include "realtime.h"
 #include "thread.h"
@@ -111,6 +112,11 @@ static void usage(FILE *fd)
 #ifdef WITH_ALSA
     fprintf(fd, "MIDI control:\n"
       "  -dicer <dev>   Novation Dicer\n\n");
+#endif
+
+#ifdef WITH_OSC
+    fprintf(fd, "OSC control:\n"
+      "  -osc <port>    OSC controller\n\n");
 #endif
 
     fprintf(fd,
@@ -518,6 +524,32 @@ int main(int argc, char *argv[])
             }
 
             if (dicer_init(c, &rt, argv[1]) == -1)
+                return -1;
+
+            nctl++;
+
+            argv += 2;
+            argc -= 2;
+#endif
+
+#ifdef WITH_OSC
+        } else if (!strcmp(argv[0], "-osc")) {
+
+            struct controller *c;
+
+            if (nctl == sizeof ctl) {
+                fprintf(stderr, "Too many controllers; aborting.\n");
+                return -1;
+            }
+
+            c = &ctl[nctl];
+
+            if (argc < 2) {
+                fprintf(stderr, "OSC controller requires a port number (zero for random)");
+                return -1;
+            }
+
+            if (osc_init(c, &rt, argv[1]) == -1)
                 return -1;
 
             nctl++;
