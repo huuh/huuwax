@@ -40,6 +40,33 @@ int reply(lo_message msg, const char *path, const char *types, ...)
 
 
 /* Handlers */
+static int handler_bpm_get(const char *path, const char *types,
+    lo_arg **argv, int argc, lo_message msg, void *user_data)
+{
+    struct deck *de = user_data;
+    struct track *tr = de->player.track;
+    char *replypath = &argv[0]->s;
+
+    if (!tr->beat_interval)
+        return 0;
+
+    REPLY(msg, replypath, "d", tr->rate * 60.0 / tr->beat_interval);
+
+    return 0;
+}
+
+static int handler_bpm_set(const char *path, const char *types,
+    lo_arg **argv, int argc, lo_message msg, void *user_data)
+{
+    struct deck *de = user_data;
+    struct track *tr = de->player.track;
+    double bpm = argv[0]->d;
+
+    tr->beat_interval = 60.0 * tr->rate / bpm;
+
+    return 0;
+}
+
 static int handler_clone(const char *path, const char *types,
     lo_arg **argv, int argc, lo_message msg, void *user_data)
 {
@@ -271,6 +298,14 @@ static int add_deck(struct controller *c, struct deck *deck)
     len = snprintf(path, PATH_MAX_LEN, "/deck%d/", osc->ndeck + 1);
     pathtail = path + len;
     len = PATH_MAX_LEN - len;
+
+    strncpy(pathtail, "bpm/get", len);
+    if (set_handler(osc, path, "s", handler_bpm_get, deck))
+        return -1;
+
+    strncpy(pathtail, "bpm/set", len);
+    if (set_handler(osc, path, "d", handler_bpm_set, deck))
+        return -1;
 
     strncpy(pathtail, "clone", len);
     if (set_handler(osc, path, "i", handler_clone, deck))
