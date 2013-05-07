@@ -167,3 +167,32 @@ void deck_punch_out(struct deck *d)
     player_seek_to(&d->player, e - d->punch);
     d->punch = NO_PUNCH;
 }
+
+void deck_sync(struct deck *src, struct deck *dst)
+{
+    if (!dst || !src || dst == src)
+        return;
+
+    struct player *spl = &src->player;
+    struct player *dpl = &dst->player;
+
+    if (!spl || !dpl)
+        return;
+
+    struct track *str = spl->track;
+    struct track *dtr = dpl->track;
+
+    if (!str || !dtr)
+        return;
+
+    double s_from_beat, d_from_beat;
+
+    s_from_beat = player_get_elapsed(spl) * str->rate - str->beat_offset;
+    s_from_beat = fmod(s_from_beat, str->beat_interval);
+
+    d_from_beat = player_get_elapsed(dpl) * dtr->rate - dtr->beat_offset;
+    d_from_beat = fmod(d_from_beat, dtr->beat_interval);
+
+    player_seek_to(dpl, player_get_elapsed(dpl) + (s_from_beat - d_from_beat) / dtr->rate);
+    dpl->pitch = dtr->beat_interval / str->beat_interval;
+}
