@@ -1406,7 +1406,7 @@ static bool handle_key(SDLKey key, SDLMod mod)
         size_t d;
 
         /* Handle the function key press in groups of four --
-	 * F1-F4 (deck 0), F5-F8 (deck 1) etc. */
+         * F1-F4 (deck 0), F5-F8 (deck 1) etc. */
 
         d = (key - SDLK_F1) / 4;
 

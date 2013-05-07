@@ -282,8 +282,8 @@ int main(int argc, char *argv[])
 #endif
 
         } else if (!strcmp(argv[0], "-d") || !strcmp(argv[0], "-a") ||
-		  !strcmp(argv[0], "-j"))
-	{
+                   !strcmp(argv[0], "-j"))
+        {
             unsigned int sample_rate;
             struct deck *ld;
             struct device *device;
@@ -339,7 +339,7 @@ int main(int argc, char *argv[])
             if (r == -1)
                 return -1;
 
-	    sample_rate = device_sample_rate(device);
+            sample_rate = device_sample_rate(device);
 
             /* Default timecode decoder where none is specified */
 

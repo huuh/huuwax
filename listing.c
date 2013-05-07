@@ -196,8 +196,8 @@ int listing_copy(const struct listing *src, struct listing *dest)
     listing_blank(dest);
 
     for (n = 0; n < src->entries; n++) {
-	if (listing_add(dest, src->record[n]) != 0)
-	    return -1;
+        if (listing_add(dest, src->record[n]) != 0)
+            return -1;
     }
 
     return 0;
@@ -215,7 +215,7 @@ int listing_copy(const struct listing *src, struct listing *dest)
  */
 
 int listing_match(struct listing *src, struct listing *dest,
-		  const char *match)
+                  const char *match)
 {
     int n;
     char *buf, *words[MAX_WORDS];

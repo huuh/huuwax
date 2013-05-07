@@ -45,7 +45,7 @@ void listing_blank(struct listing *ls);
 int listing_add(struct listing *li, struct record *lr);
 int listing_copy(const struct listing *src, struct listing *dest);
 int listing_match(struct listing *src, struct listing *dest,
-		  const char *match);
+                  const char *match);
 struct record* listing_insert(struct listing *ls, struct record *item,
                               int sort);
 size_t listing_find(struct listing *ls, struct record *item, int sort);

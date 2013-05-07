@@ -118,7 +118,7 @@ static void process_deck(struct device *dv, jack_nframes_t nframes)
         device_collect(dv, buf, block);
         uninterleave(out, buf, block);
 
-	remain -= block;
+        remain -= block;
     }
 }
 
@@ -203,22 +203,22 @@ static int register_ports(struct jack *jack, const char *name)
 
     assert(DEVICE_CHANNELS == 2);
     for (n = 0; n < DEVICE_CHANNELS; n++) {
-	sprintf(port_name, "%s_timecode_%c", name, channel[n]);
+        sprintf(port_name, "%s_timecode_%c", name, channel[n]);
         jack->input_port[n] = jack_port_register(client, port_name,
                                                  JACK_DEFAULT_AUDIO_TYPE,
                                                  JackPortIsInput, 0);
-	if (jack->input_port[n] == NULL) {
-	    fprintf(stderr, "JACK: Failed to register timecode input port\n");
-	    return -1;
-	}
-	sprintf(port_name, "%s_playback_%c", name, channel[n]);
-	jack->output_port[n] = jack_port_register(client, port_name,
+        if (jack->input_port[n] == NULL) {
+            fprintf(stderr, "JACK: Failed to register timecode input port\n");
+            return -1;
+        }
+        sprintf(port_name, "%s_playback_%c", name, channel[n]);
+        jack->output_port[n] = jack_port_register(client, port_name,
                                                   JACK_DEFAULT_AUDIO_TYPE,
                                                   JackPortIsOutput, 0);
-	if (jack->output_port[n] == NULL) {
-	    fprintf(stderr, "JACK: Failed to register audio playback port\n");
-	    return -1;
-	}
+        if (jack->output_port[n] == NULL) {
+            fprintf(stderr, "JACK: Failed to register audio playback port\n");
+            return -1;
+        }
     }
     return 0;
 }
