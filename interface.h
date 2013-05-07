@@ -23,7 +23,7 @@
 #include "deck.h"
 #include "library.h"
 
-int interface_start(struct library *lib, const char *geo);
+int interface_start(struct library *lib, const char *geo, bool vsplit);
 void interface_stop();
 
 #endif

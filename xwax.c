@@ -113,6 +113,9 @@ static void usage(FILE *fd)
       "  -dicer <dev>   Novation Dicer\n\n");
 #endif
 
+    fprintf(fd, "Interface options:\n"
+      "  -v             Arrange decks vertically\n\n");
+
     fprintf(fd,
       "The ordering of options is important. Options apply to subsequent\n"
       "music libraries or decks, which can be given multiple times. See the\n"
@@ -131,7 +134,7 @@ int main(int argc, char *argv[])
     size_t nctl;
     double speed;
     struct timecode_def *timecode;
-    bool protect, use_mlock;
+    bool protect, use_mlock, vsplit;
 
     struct controller ctl[2];
     struct rt rt;
@@ -169,6 +172,7 @@ int main(int argc, char *argv[])
     speed = 1.0;
     protect = false;
     use_mlock = false;
+    vsplit = false;
 
 #if defined WITH_OSS || WITH_ALSA
     rate = DEFAULT_RATE;
@@ -526,6 +530,13 @@ int main(int argc, char *argv[])
             argc -= 2;
 #endif
 
+        } else if (!strcmp(argv[0], "-v")) {
+
+            vsplit = true;
+
+            argv++;
+            argc--;
+
         } else {
             fprintf(stderr, "'%s' argument is unknown; try -h.\n", argv[0]);
             return -1;
@@ -559,7 +570,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    if (interface_start(&library, geo) == -1)
+    if (interface_start(&library, geo, vsplit) == -1)
         return -1;
 
     if (rig_main() == -1)
