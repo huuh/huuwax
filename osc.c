@@ -63,6 +63,20 @@ static int handler_connect(const char *path, const char *types,
     return 0;
 }
 
+static int handler_load(const char *path, const char *types,
+    lo_arg **argv, int argc, lo_message msg, void *user_data)
+{
+    struct deck *de = user_data;
+    char *pathname = strdup(&argv[0]->s);
+
+    fprintf(stderr, "%s: Importing '%s'...\n", path, pathname);
+    if (de->pathname && de->pathname[0])
+        free(de->pathname);
+    deck_load(de, pathname);
+
+    return 0;
+}
+
 static int handler_cue(const char *path, const char *types,
     lo_arg **argv, int argc, lo_message msg, void *user_data)
 {
@@ -264,6 +278,10 @@ static int add_deck(struct controller *c, struct deck *deck)
 
     strncpy(pathtail, "connect", len);
     if (set_handler(osc, path, NULL, handler_connect, deck))
+        return -1;
+
+    strncpy(pathtail, "load", len);
+    if (set_handler(osc, path, "s", handler_load, deck))
         return -1;
 
     strncpy(pathtail, "cue", len);
