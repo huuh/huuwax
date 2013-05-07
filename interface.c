@@ -77,7 +77,7 @@
 
 /* Dimensions in our own screen units */
 
-#define BORDER 12
+#define BORDER 1
 #define SPACER 8
 #define HALF_SPACER 4
 
@@ -151,7 +151,6 @@ static TTF_Font *clock_font, *deci_font, *detail_font,
 static SDL_Color background_col = {0, 0, 0, 255},
     text_col = {224, 224, 224, 255},
     warn_col = {192, 64, 0, 255},
-    ok_col = {32, 128, 3, 255},
     elapsed_col = {0, 32, 255, 255},
     detail_col = {128, 128, 128, 255},
     needle_col = {255, 255, 255, 255};
@@ -205,32 +204,6 @@ static void set_beat_marker(struct player *pl, size_t n)
 static int zoom(int d)
 {
     return d * ZOOM;
-}
-
-/*
- * Convert the given time (in milliseconds) to displayable time
- */
-
-static void time_to_clock(char *buf, char *deci, int t)
-{
-    int minutes, seconds, frac;
-    bool neg;
-
-    if (t < 0) {
-        t = abs(t);
-        neg = true;
-    } else
-        neg = false;
-
-    minutes = (t / 60 / 1000) % (60*60);
-    seconds = (t / 1000) % 60;
-    frac = t % 1000;
-
-    if (neg)
-        *buf++ = '-';
-
-    sprintf(buf, "%02d:%02d.", minutes, seconds);
-    sprintf(deci, "%03d", frac);
 }
 
 /*
@@ -465,18 +438,6 @@ static int draw_text(SDL_Surface *sf, const struct rect *rect,
 }
 
 /*
- * Given a rectangle and font, calculate rendering bounds
- * for another font so that the baseline matches.
- */
-
-static void track_baseline(const struct rect *rect, const TTF_Font *a,
-                           struct rect *aligned, const TTF_Font *b)
-{
-    split(*rect, pixels(from_top(TTF_FontAscent(a)  - TTF_FontAscent(b), 0)),
-          NULL, aligned);
-}
-
-/*
  * Dim a colour for display
  */
 
@@ -547,152 +508,6 @@ static SDL_Color hsv(double h, double s, double v)
 }
 
 /*
- * Draw a single time in milliseconds in hours:minutes.seconds format
- */
-
-static void draw_clock(SDL_Surface *surface, const struct rect *rect, int t,
-                       SDL_Color col)
-{
-    char hms[8], deci[8];
-    short int v;
-    struct rect sr;
-
-    time_to_clock(hms, deci, t);
-
-    v = draw_text(surface, rect, hms, clock_font, col, background_col);
-
-    split(*rect, pixels(from_left(v, 0)), NULL, &sr);
-    track_baseline(&sr, clock_font, &sr, deci_font);
-
-    draw_text(surface, &sr, deci, deci_font, col, background_col);
-}
-
-/*
- * Draw the visual monitor of the input audio to the timecoder
- */
-
-static void draw_scope(SDL_Surface *surface, const struct rect *rect,
-                       struct timecoder *tc)
-{
-    int r, c, v, mid;
-    Uint8 *p;
-
-    mid = tc->mon_size / 2;
-
-    for (r = 0; r < tc->mon_size; r++) {
-        for (c = 0; c < tc->mon_size; c++) {
-            p = surface->pixels
-                + (rect->y + r) * surface->pitch
-                + (rect->x + c) * surface->format->BytesPerPixel;
-
-            v = tc->mon[r * tc->mon_size + c];
-
-            if ((r == mid || c == mid) && v < 64)
-                v = 64;
-
-            p[0] = v;
-            p[1] = p[0];
-            p[2] = p[1];
-        }
-    }
-}
-
-/*
- * Draw the spinner
- *
- * The spinner shows the rotational position of the record, and
- * matches the physical rotation of the vinyl record.
- */
-
-static void draw_spinner(SDL_Surface *surface, const struct rect *rect,
-                         struct player *pl)
-{
-    int x, y, r, c, rangle, pangle;
-    double elapsed, remain, rps;
-    Uint8 *rp, *p;
-    SDL_Color col;
-
-    x = rect->x;
-    y = rect->y;
-
-    elapsed = player_get_elapsed(pl);
-    remain = player_get_remain(pl);
-
-    rps = timecoder_revs_per_sec(pl->timecoder);
-    rangle = (int)(player_get_position(pl) * 1024 * rps) % 1024;
-
-    if (elapsed < 0 || remain < 0)
-        col = warn_col;
-    else
-        col = ok_col;
-
-    for (r = 0; r < spinner_size; r++) {
-
-        /* Store a pointer to this row of the framebuffer */
-
-        rp = surface->pixels + (y + r) * surface->pitch;
-
-        for (c = 0; c < spinner_size; c++) {
-
-            /* Use the lookup table to provide the angle at each
-             * pixel */
-
-            pangle = spinner_angle[r * spinner_size + c];
-
-            /* Calculate the final pixel location and set it */
-
-            p = rp + (x + c) * surface->format->BytesPerPixel;
-
-            if ((rangle - pangle + 1024) % 1024 < 512) {
-                p[0] = col.b >> 2;
-                p[1] = col.g >> 2;
-                p[2] = col.r >> 2;
-            } else {
-                p[0] = col.b;
-                p[1] = col.g;
-                p[2] = col.r;
-            }
-        }
-    }
-}
-
-/*
- * Draw the clocks which show time elapsed and time remaining
- */
-
-static void draw_deck_clocks(SDL_Surface *surface, const struct rect *rect,
-                             struct player *pl, struct track *track)
-{
-    int elapse, remain;
-    struct rect upper, lower;
-    SDL_Color col;
-
-    split(*rect, from_top(CLOCK_FONT_SIZE, 0), &upper, &lower);
-
-    elapse = player_get_elapsed(pl) * 1000;
-    remain = player_get_remain(pl) * 1000;
-
-    if (elapse < 0)
-        col = warn_col;
-    else if (remain > 0)
-        col = ok_col;
-    else
-        col = text_col;
-
-    draw_clock(surface, &upper, elapse, col);
-
-    if (remain <= 0)
-        col = warn_col;
-    else
-        col = text_col;
-
-    if (track_is_importing(track))
-        col = dim(col, 2);
-
-    draw_clock(surface, &lower, -remain, col);
-}
-
-/*
  * Draw the high-level overview meter which shows the whole length
  * of the track
  */
@@ -735,7 +550,7 @@ static void draw_overview(SDL_Surface *surface, const struct rect *rect,
         if (!tr->length) {
             col = background_col;
             fade = 0;
-        } else if (c == current_position) {
+        } else if (c == current_position || c == w / 2) {
             col = needle_col;
             fade = 1;
         } else if (position > tr->length - tr->rate * METER_WARNING_TIME) {
@@ -750,14 +565,21 @@ static void draw_overview(SDL_Surface *surface, const struct rect *rect,
             col = dim(col, 1);
 
         if (c < current_position)
-            col = dim(col, 1);
+            fade = 1;
 
         /* Store a pointer to this column of the framebuffer */
 
         p = pixels + y * pitch + (x + c) * bytes_per_pixel;
 
         r = h;
-        while (r > height) {
+        while (r > (height + h) / 2) {
+            p[0] = col.b;
+            p[1] = col.g;
+            p[2] = col.r;
+            p += pitch;
+            r--;
+        }
+        while (r > (h - height) / 2) {
             p[0] = col.b >> fade;
             p[1] = col.g >> fade;
             p[2] = col.r >> fade;
@@ -780,7 +602,7 @@ static void draw_overview(SDL_Surface *surface, const struct rect *rect,
  */
 
 static void draw_closeup(SDL_Surface *surface, const struct rect *rect,
-                         struct track *tr, int position, int scale)
+                         struct track *tr, int position, int scale, bool rev)
 {
     int x, y, w, h, c;
     size_t bytes_per_pixel, pitch;
@@ -835,17 +657,17 @@ static void draw_closeup(SDL_Surface *surface, const struct rect *rect,
         p = pixels + y * pitch + (x + c) * bytes_per_pixel;
 
         r = h;
-        while (r > height) {
-            p[0] = col.b >> fade;
-            p[1] = col.g >> fade;
-            p[2] = col.r >> fade;
+        while (r > (rev ? h - height : height)) {
+            p[0] = col.b >> (fade * !rev);
+            p[1] = col.g >> (fade * !rev);
+            p[2] = col.r >> (fade * !rev);
             p += pitch;
             r--;
         }
         while (r) {
-            p[0] = col.b;
-            p[1] = col.g;
-            p[2] = col.r;
+            p[0] = col.b >> (fade * rev);
+            p[1] = col.g >> (fade * rev);
+            p[2] = col.r >> (fade * rev);
             p += pitch;
             r--;
         }
@@ -859,85 +681,15 @@ static void draw_closeup(SDL_Surface *surface, const struct rect *rect,
 static void draw_meters(SDL_Surface *surface, const struct rect *rect,
                         struct track *tr, int position, int scale)
 {
-    struct rect overview, closeup;
+    int h = rect->h;
+    struct rect overview, closeup_upper, closeup_bottom;
 
-    split(*rect, from_top(OVERVIEW_HEIGHT, SPACER), &overview, &closeup);
+    split(*rect, from_top(2 * h / 5, 0), &closeup_upper, &overview);
+    split(overview, from_top(h / 5, 0), &overview, &closeup_bottom);
 
-    if (closeup.h > OVERVIEW_HEIGHT)
-        draw_overview(surface, &overview, tr, position);
-    else
-        closeup = *rect;
-
-    draw_closeup(surface, &closeup, tr, position, scale);
-}
-
-/*
- * Draw the current playback status -- clocks, spinner and scope
- */
-
-static void draw_deck_top(SDL_Surface *surface, const struct rect *rect,
-                          struct player *pl, struct track *track)
-{
-    struct rect clocks, left, right, spinner, scope;
-
-    split(*rect, from_left(CLOCKS_WIDTH, SPACER), &clocks, &right);
-
-    /* If there is no timecoder to display information on, or not enough
-     * available space, just draw clocks which span the overall space */
-
-    if (!pl->timecode_control || right.w < 0) {
-        draw_deck_clocks(surface, rect, pl, track);
-        return;
-    }
-
-    draw_deck_clocks(surface, &clocks, pl, track);
-
-    split(right, from_right(SPINNER_SIZE, SPACER), &left, &spinner);
-    if (left.w < 0)
-        return;
-    split(spinner, from_bottom(SPINNER_SIZE, 0), NULL, &spinner);
-    draw_spinner(surface, &spinner, pl);
-
-    split(left, from_right(SCOPE_SIZE, SPACER), &clocks, &scope);
-    if (clocks.w < 0)
-        return;
-    split(scope, from_bottom(SCOPE_SIZE, 0), NULL, &scope);
-    draw_scope(surface, &scope, pl->timecoder);
-}
-
-/*
- * Draw the textual description of playback status, which includes
- * information on the timecode
- */
-
-static void draw_deck_status(SDL_Surface *surface,
-                             const struct rect *rect,
-                             const struct deck *deck)
-{
-    char buf[128], *c;
-    int tc;
-    const struct player *pl = &deck->player;
-
-    c = buf;
-
-    c += sprintf(c, "%s: ", pl->timecoder->def->name);
-
-    tc = timecoder_get_position(pl->timecoder, NULL);
-    if (pl->timecode_control && tc != -1) {
-        c += sprintf(c, "%7d ", tc);
-    } else {
-        c += sprintf(c, "        ");
-    }
-
-    sprintf(c, "pitch:%+0.2f (sync %0.2f %+.5fs = %+0.2f)  %s%s",
-            pl->pitch,
-            pl->sync_pitch,
-            pl->last_difference,
-            pl->pitch * pl->sync_pitch,
-            pl->recalibrate ? "RCAL  " : "",
-            deck_is_locked(deck) ? "LOCK  " : "");
-
-    draw_text(surface, rect, buf, detail_font, detail_col, background_col);
+    draw_closeup(surface, &closeup_upper, tr, position, scale, false);
+    draw_overview(surface, &overview, tr, position);
+    draw_closeup(surface, &closeup_bottom, tr, position, scale, true);
 }
 
 /*
@@ -948,7 +700,6 @@ static void draw_deck(SDL_Surface *surface, const struct rect *rect,
                       struct deck *deck, int meter_scale)
 {
     int position;
-    struct rect track, top, meters, status, rest, lower;
     struct player *pl;
     struct track *t;
 
@@ -957,25 +708,7 @@ static void draw_deck(SDL_Surface *surface, const struct rect *rect,
 
     position = player_get_elapsed(pl) * t->rate;
 
-    split(*rect, from_top(FONT_SPACE + BIG_FONT_SPACE, 0), &track, &rest);
-    if (rest.h < 160)
-        rest = *rect;
-    else
-        draw_text(surface, &track, deck->pathname, font, text_col, background_col);
-
-    split(rest, from_top(CLOCK_FONT_SIZE * 2, SPACER), &top, &lower);
-    if (lower.h < 64)
-        lower = rest;
-    else
-        draw_deck_top(surface, &top, pl, t);
-
-    split(lower, from_bottom(FONT_SPACE, SPACER), &meters, &status);
-    if (meters.h < 64)
-        meters = lower;
-    else
-        draw_deck_status(surface, &status, deck);
-
-    draw_meters(surface, &meters, t, position, meter_scale);
+    draw_meters(surface, rect, t, position, meter_scale);
 }
 
 /*
