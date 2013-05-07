@@ -19,10 +19,24 @@ typedef int (osc_handler)(const char *path, const char *types,
 struct osc {
     lo_server lo;
     int ndeck;
+    struct deck *decks[4];
 };
 
 
-int reply(lo_message msg, const char *path, const char *types, ...)
+static struct deck *deck_from_path(struct osc *osc, const char *path)
+{
+    const char *nptr = path + sizeof("/deck") - 1;
+    char *endptr;
+
+    long int i = strtol(nptr, &endptr, 10) - 1;
+    if (endptr == nptr || i < 0 || i >= osc->ndeck)
+        return NULL;
+
+    return osc->decks[i];
+}
+
+
+static int reply(lo_message msg, const char *path, const char *types, ...)
 {
     lo_address src = lo_message_get_source(msg);
     lo_message response = lo_message_new();
@@ -38,8 +52,17 @@ int reply(lo_message msg, const char *path, const char *types, ...)
     return 0;
 }
 
+static int set_handler(struct osc *osc, const char *path, const char *typespec,
+    osc_handler *handler, void *user_data)
+{
+    if (!osc)
+        return -1;
+    return !lo_server_thread_add_method(osc->lo, path, typespec,
+                                        handler, user_data);
+}
 
-/* Handlers */
+
+/* OSC handlers */
 static int handler_bpm_get(const char *path, const char *types,
     lo_arg **argv, int argc, lo_message msg, void *user_data)
 {
@@ -279,16 +302,25 @@ static int handler_recue(const char *path, const char *types,
     return 0;
 }
 
-static int set_handler(struct osc *osc, const char *path, const char *typespec,
-    osc_handler *handler, void *user_data)
+static int handler_sync(const char *path, const char *types,
+    lo_arg **argv, int argc, lo_message msg, void *user_data)
 {
-    if (!osc)
-        return -1;
-    return !lo_server_thread_add_method(osc->lo, path, typespec,
-                                        handler, user_data);
+    struct osc *osc = user_data;
+    int i = argv[0]->i - 1;
+
+    if (i < 0 || i >= osc->ndeck)
+        return 0;
+
+    struct deck *src = osc->decks[i];
+    struct deck *dst = deck_from_path(osc, path);
+
+    deck_sync(src, dst);
+
+    return 0;
 }
 
 
+/* Controller operations */
 static int add_deck(struct controller *c, struct deck *deck)
 {
     struct osc *osc = c->local;
@@ -371,7 +403,14 @@ static int add_deck(struct controller *c, struct deck *deck)
     if (set_handler(osc, path, "d", handler_position_rel, deck))
         return -1;
 
-    osc->ndeck += 1;
+    strncpy(pathtail, "sync", len);
+    if (set_handler(osc, path, "i", handler_sync, osc))
+        return -1;
+
+
+    osc->decks[osc->ndeck] = deck;
+    osc->ndeck++;
+
     return 0;
 }
 
