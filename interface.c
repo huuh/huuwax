@@ -1607,7 +1607,7 @@ static int interface_main(void)
             status_update = false;
         }
 
-        split(rtmp, from_top(rtmp.h / 2, SPACER), &rplayers, &rlibrary);
+        split(rtmp, from_top(PLAYER_HEIGHT * (vsplit ? ndeck : 1), SPACER), &rplayers, &rlibrary);
         if (rlibrary.h < LIBRARY_MIN_HEIGHT || rlibrary.w < LIBRARY_MIN_WIDTH) {
             rplayers = rtmp;
             library_update = false;
