@@ -553,11 +553,12 @@ static void draw_overview(SDL_Surface *surface, const struct rect *rect,
         } else if (c == current_position || c == w / 2) {
             col = needle_col;
             fade = 1;
-        } else if (position > tr->length - tr->rate * METER_WARNING_TIME) {
-            col = warn_col;
-            fade = 3;
         } else {
-            col = elapsed_col;
+            double f = 0;
+            if (position > 0 && position < tr->length)
+                f = 360.0 * position / tr->length;
+
+            col = hsv(f, 1, 0.8);
             fade = 3;
         }
 
@@ -640,15 +641,28 @@ static void draw_closeup(SDL_Surface *surface, const struct rect *rect,
         col = elapsed_col;
         fade = 3;
 
-        if (sp > 0 && sp < tr->length && tr->beat_interval &&
-            fmod(sp - tr->beat_offset, tr->beat_interval) < (1 << scale)) {
-            col = needle_col;
-            fade = 2;
-        }
 
         if (c == w / 2) {
             col = needle_col;
             fade = 1;
+        } else if (tr->length && sp > 0 && sp < tr->length) {
+
+            /* Beat grid */
+            if (tr->beat_interval &&
+                fmod(sp - tr->beat_offset, tr->beat_interval) < (1 << scale)) {
+                col = needle_col;
+                fade = 2;
+
+            /* Waveform hue depends on position */
+            } else {
+                col = hsv(360.0 * sp / tr->length, 1.0, 0.8);
+                fade = 3;
+            }
+
+        } else {
+            col = hsv(180.0, 1, 0.8);
+            col = dim(col, 3);
+            fade = 0;
         }
 
         /* Get a pointer to the top of the column, and increment
