@@ -65,6 +65,11 @@ struct track {
     
     unsigned short ppm;
     unsigned int overview;
+
+    /* Tempo related values (in samples) */
+
+    double beat_interval;
+    unsigned long int beat_offset;
 };
 
 void track_use_mlock(void);

@@ -242,6 +242,9 @@ static int track_init(struct track *t, const char *importer, const char *path)
     t->importer = importer;
     t->path = path;
 
+    t->beat_interval = 0;
+    t->beat_offset = 0;
+
     list_add(&t->tracks, &tracks);
     rig_post_track(t);
 
